@@ -118,17 +118,13 @@ object test {
 
     // Per Document
     get(c.key, name)
-    get(c.key, HList(key, name))
+    get(c.key)(key, name)
 
     set(c.key, name, "a")
-    set(c.key, HList(key, name), HList(UUID.random, "b"))
+    set(c.key)(key, name)(UUID.random, "b")
 
     update(c.key, name)(_ + "*")
-    update(c.key, HList(key, name)) { 
-      import shapeless._
-      import HList._
-      x: UUID :: String :: HNil => x 
-    }
+    update(c.key)(key, name).to((a, b) => (a, b + "*"))
 
     // Monadic Operations
     entity.get(c.key).flatMap { x => entity.set(c.key, x.copy(name = x.name + "*")) }
