@@ -10,7 +10,7 @@ object BuildSettings {
   val buildSettings = Defaults.defaultSettings ++ Sonatype.settings ++ Seq(
     organization        := "com.github.aloiscochard.siona",
     version             := "0.1-SNAPSHOT",
-    scalaVersion        := "2.9.1",
+    scalaVersion        := "2.9.2",
     scalacOptions       := Seq("-unchecked", "-deprecation", "-Ydependent-method-types"),
     crossScalaVersions  := Seq("2.9.1", "2.9.1-1", "2.9.2"),
     resolvers ++= Seq(
@@ -21,7 +21,14 @@ object BuildSettings {
 }
 
 object Dependencies {
-  val testDependencies = Seq(libraryDependencies += "org.specs2" %% "specs2" % "1.8.2" % "test")
+  val testDependencies = Seq(libraryDependencies <<= (scalaVersion, libraryDependencies) { (version, dependencies) =>
+    val specs2 = version match {
+      case "2.9.1" => ("org.specs2" %% "specs2" % "1.9" % "test")
+      case "2.9.1-1" => ("org.specs2" %% "specs2" % "1.9" % "test")
+      case _ => ("org.specs2" %% "specs2" % "1.11" % "test")
+    }
+    dependencies :+ specs2
+  })
 }
 
 object SionaBuild extends Build {
@@ -32,15 +39,18 @@ object SionaBuild extends Build {
     "siona",
     file ("."),
     settings = buildSettings
-  ) aggregate (core, logging)
+  ) aggregate (core, logging, demo_petstore)
 
   lazy val core = Project(
     "siona-core",
     file("siona-core"),
     settings = buildSettings ++ testDependencies ++ Seq(
       libraryDependencies ++= Seq(
+        "com.fasterxml.jackson.core" % "jackson-core" % "2.0.0",
         "org.scalaz" %% "scalaz-core" % "7.0-SNAPSHOT",
-        "com.chuusai" %% "shapeless" % "1.2.0-SNAPSHOT"
+        "org.scalaz" %% "scalaz-effect" % "7.0-SNAPSHOT",
+        //"com.chuusai" %% "shapeless" % "1.2.2"
+        "com.github.aloiscochard" %% "shapeless" % "1.2.3-SNAPSHOT"
       )
     )
   )
