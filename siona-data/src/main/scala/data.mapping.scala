@@ -37,7 +37,7 @@ trait Mapper[E <: Entity[_, _]] extends model.Model with io.Readable[E] with io.
     def marshall[F <: Format](implicit serializer: Serializer[F]) = serializer.marshall(Mapper.this, entity)
   }
 
-  case class KeyField[K](override val lens: LensT[Id, E, K]) extends MapperKeyField[K, E]
+  case class KeyField[K](override val lens: LensT[Id, E, K]) extends Field[K] with MapperKeyField[K, E]
 
   trait MapperKeyField[K, T] extends Field[K] with Mapped[K] {
     override val name: String = "id"
@@ -64,7 +64,7 @@ trait Mapper[E <: Entity[_, _]] extends model.Model with io.Readable[E] with io.
     f -> (f.read(_: T)(out, s))
 
   //implicit def fieldKey2apply[K, T](f: KeyField[K, T])(implicit in: io.Input, s: Serializable[K]): KeyField[K, T]#V = f(in, s)
-  implicit def fieldKey2apply[K](f: KeyField[K])(implicit in: io.Input, s: Serializable[K]): KeyField[K]#V = f(in, s)
+  implicit def fieldKey2apply[K](f: MapperKeyField[K, E])(implicit in: io.Input, s: Serializable[K]): MapperKeyField[K, E]#V = f(in, s)
   implicit def fieldDefault2apply[T](f: model.Default[T])(implicit in: io.Input, s: Serializable[T]) = f(in, s)
   implicit def fieldOptional2apply[T](f: model.Optional[T])(implicit in: io.Input, s: Serializable[T]) = f(in, s)
 }

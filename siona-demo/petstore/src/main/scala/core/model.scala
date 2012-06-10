@@ -51,7 +51,7 @@ package object model {
     )
 
     def in(implicit in: Input) = Category(key, name)
-    def out(implicit out: Output) = /*key ::*/ name :: Nil
+    def out(implicit out: Output) = /* key ::*/ name :: Nil
   }
 
 

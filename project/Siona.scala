@@ -46,14 +46,23 @@ object SionaBuild extends Build {
     file("siona-core"),
     settings = buildSettings ++ testDependencies ++ Seq(
       libraryDependencies ++= Seq(
-        "com.fasterxml.jackson.core" % "jackson-core" % "2.0.0",
         "org.scalaz" %% "scalaz-core" % "7.0-SNAPSHOT",
-        "org.scalaz" %% "scalaz-effect" % "7.0-SNAPSHOT",
+        "org.scalaz" %% "scalaz-effect" % "7.0-SNAPSHOT"
+      )
+    )
+  )
+
+  lazy val data = Project(
+    "siona-data",
+    file("siona-data"),
+    settings = buildSettings ++ testDependencies ++ Seq(
+      libraryDependencies ++= Seq(
+        "com.fasterxml.jackson.core" % "jackson-core" % "2.0.0",
         //"com.chuusai" %% "shapeless" % "1.2.2"
         "com.github.aloiscochard" %% "shapeless" % "1.2.3-SNAPSHOT"
       )
     )
-  )
+  ) dependsOn(core)
 
   lazy val logging = Project(
     "siona-logging",
@@ -65,7 +74,7 @@ object SionaBuild extends Build {
     "siona-demo-petstore",
     file("siona-demo/petstore"),
     settings = buildSettings ++ testDependencies
-  ) dependsOn(core, logging)
+  ) dependsOn(core, data, logging)
 }
 
 object Sonatype extends PublishToSonatype(SionaBuild) {

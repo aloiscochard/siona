@@ -95,17 +95,6 @@ package repository {
         update(k, fs)(hts)(e)
       }
     } 
-
-    /*
-    def update[P1 <: Product, P2 <: Product, L1 <: HList, L2 <: HList](k: Key)(fs: P1)
-        (implicit h1: HListerAux[P1, L1], e: CoNatTRelAux[L1, Field, L2, Id], h2: HListerAux[P2, L2]) = {
-      new Update[L1, L2, P2](k, h1(fs))
-    }
-
-    class Update[L1 <: HList, L2 <: HList, P2 <: Product](k: Key, fs: L1) {
-      def to(ts: P2 => P2)(implicit h: HListerAux[P2, L2]) = update(k, fs)(ts.hlisted)
-    }
-    */
   }
 
 
