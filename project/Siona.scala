@@ -39,7 +39,7 @@ object SionaBuild extends Build {
     "siona",
     file ("."),
     settings = buildSettings
-  ) aggregate (core, logging, demo_petstore)
+  ) aggregate (core, data, logging, demo_petstore)
 
   lazy val core = Project(
     "siona-core",
