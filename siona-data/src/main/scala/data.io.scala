@@ -7,8 +7,6 @@ package siona.data
 import siona.core.uuid._
 import siona.core.entity._
 
-import model._
-
 package object io {
   trait Writable[T] extends Marshalling[T] {
     def write(out: Output, v: T): T
@@ -19,7 +17,6 @@ package object io {
   }
 
   trait Input {
-    def apply[T : Serializable](f: Field[T]) = f.apply(this, implicitly[Serializable[T]])
     def read[T : Serializable](n: String): Option[T]
   }
 
@@ -37,13 +34,40 @@ package object io {
     def unmarshall[F <: Format](implicit serializer: Serializer[F]) = serializer.unmarshall(self)
   }
 
+  // TODO [aloiscochard] Replace Array[Byte] with ByteString
   case class Serializable[T](toBytes: T => Array[Byte], fromBytes: Array[Byte] => T)
 
+  // TODO [aloiscochard] Check what happen when calling wrap(x).* with array of smaller size than needed,
+  // maybe use as*Buffer for security
   object Serializable {
-    implicit val uuid: Serializable[UUID] = 
-      Serializable(_.toString.getBytes, (x: Array[Byte]) => java.util.UUID.fromString(new String(x)))
+    import java.nio.ByteBuffer._
+
+    implicit val boolean: Serializable[Boolean] = 
+      Serializable(x => Array((if (x) 1 else 0): Byte), x => (x.size == 1 && x(0) == 1))
+
+    implicit val char: Serializable[Char] =
+      Serializable(x => allocate(2).putChar(x).array(), x => wrap(x).getChar)
+
+    implicit val double: Serializable[Double] =
+      Serializable(x => allocate(8).putDouble(x).array(), x => wrap(x).getDouble)
+
+    implicit val float: Serializable[Float] =
+      Serializable(x => allocate(4).putFloat(x).array(), x => wrap(x).getFloat)
+
+    implicit val integer: Serializable[Int] =
+      Serializable(x => allocate(4).putInt(x).array(), x => wrap(x).getInt)
+
+    implicit val long: Serializable[Long] =
+      Serializable(x => allocate(8).putLong(x).array(), x => wrap(x).getLong)
+
+    implicit val short: Serializable[Short] =
+      Serializable(x => allocate(2).putShort(x).array(), x => wrap(x).getShort)
+
     implicit val string: Serializable[String] =
       Serializable(_.getBytes, new String(_: Array[Byte]))
+
+    implicit val uuid: Serializable[UUID] = 
+      Serializable(_.toString.getBytes, (x: Array[Byte]) => java.util.UUID.fromString(new String(x)))
   }
 
   trait Serializer[F <: Format] {
