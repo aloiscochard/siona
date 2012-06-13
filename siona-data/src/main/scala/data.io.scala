@@ -19,11 +19,11 @@ package object io {
   }
 
   trait Input {
-    def read[T : Serializable](n: String): Option[T]
+    def read[T](n: String)(implicit s: Serializable[T], m: Manifest[T]): Option[T]
   }
 
   trait Output {
-    def write[T : Serializable](n: String, x: T): T
+    def write[T](n: String, x: T)(implicit s: Serializable[T]): T
   }
 
   trait Marshalling[T] { self: Writable[T] =>
@@ -49,6 +49,8 @@ package object io {
 
     implicit val boolean: Serializable[Boolean] = 
       fromByteArray(x => Array((if (x) 1 else 0): Byte), x => (x.size == 1 && x(0) == 1))
+
+    // TODO [aloiscochard] Missing byte and bytes!
 
     implicit val char: Serializable[Char] =
       fromByteArray(x => allocate(2).putChar(x).array(), x => wrap(x).getChar)
@@ -91,11 +93,80 @@ package object io {
     }
   }
 
+  // TODO [aloiscochard] Add output type in format (Binary extends Format[ByteString], JSON -> String, Protobuf ext Binary)
   trait Format
-  case class JSON() extends Format
-  case class Protobuf() extends Format
+  trait Binary extends Format
+  trait JSON extends Format
+  trait Protobuf extends Format
+
 }
 package io {
+  package object native {
+    import java.io.{ByteArrayOutputStream, ByteArrayInputStream}
+    import java.io.{ObjectOutputStream, ObjectInputStream}
+
+    // TODO [aloiscochard] Add native version that use field name and rename this one
+
+    class Native extends Binary
+
+    implicit object NativeSerializer extends Serializer[Native] {
+      def marshall[T](s: Writable[T], x: T): Marshalled[T] = { // Return IO?
+        val bos = new ByteArrayOutputStream()// TODO Size, calculated?
+        val oos = new ObjectOutputStream(bos)
+
+        s.write(new NativeOutput(oos), x)
+
+        // TODO usefull?
+        oos.close
+        bos.close
+
+        Marshalled[T](bos.toByteArray.toStream)
+      }
+
+      def unmarshall[T](r: Readable[T]): Unmarshalled[T] = Unmarshalled(
+        input => {
+          val bis = new ByteArrayInputStream(input.toArray)
+          val ois = new ObjectInputStream(bis)
+
+          val x = r.read(new NativeInput(ois))
+
+          // TODO usefull?
+          bis.close
+          ois.close
+
+          x
+        }
+      )
+      
+      private class NativeOutput(oos: ObjectOutputStream) extends Output {
+        def write[T](name: String, value: T)(implicit s: Serializable[T]): T = {
+          value match {
+            case x: Boolean => oos.writeBoolean(x)
+            case x: String => oos.writeUTF(x)
+            case x: Char => oos.writeChar(x)
+            case x: Double => oos.writeDouble(x)
+            case x: Float => oos.writeFloat(x)
+            case x: Int => oos.writeInt(x)
+            case x: Long => oos.writeLong(x)
+            case x: Short => oos.writeShort(x)
+            case x: UUID => oos.writeChars(x.toString)
+            case x => oos.write(s.put(x).toArray)
+          }
+          value
+        }
+      }
+
+      private class NativeInput(ois: ObjectInputStream) extends Input {
+        def read[T](n: String)(implicit s: Serializable[T], m: Manifest[T]): Option[T] = {
+          if (m <:< manifest[Boolean]) Some(ois.readBoolean).asInstanceOf[Option[T]]
+          // TODO [aloiscochard] WIP
+          else if (m <:< manifest[String]) Some(ois.readUTF).asInstanceOf[Option[T]]
+          else None
+        }
+      }
+    }
+  }
+
   package object jackson {
     import java.io.ByteArrayOutputStream
     import com.fasterxml.jackson.core.JsonFactory
@@ -122,6 +193,7 @@ package io {
         value match {
           case x: Boolean => jg.writeBooleanField(name, x)
           case x: String => jg.writeStringField(name, x)
+          case x: UUID => jg.writeStringField(name, x.toString)
           case x => jg.writeBinaryField(name, ser.put(x).toArray)
         }
         value

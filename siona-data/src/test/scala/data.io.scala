@@ -34,5 +34,27 @@ class DataIOSpec extends Specification {
       check(string) must beEqualTo(string)
       check(uuid) must beEqualTo(uuid)
     }
+
+    "support native serialization" in {
+      import io.native._
+
+      object Data extends Writable[Data] with Readable[Data] {
+        def write(out: Output, data: Data): Data = {
+          out.write("string", data.string)
+          data
+        }
+
+        def read(input: Input): Data = {
+          new Data(input.read[String]("string").getOrElse(""))
+        }
+      }
+
+      case class Data(val string: String)
+
+      val i = new Data("hello siona! éàôäö")
+      val o = Data.unmarshall[Native].fromBytes(Data.marshall[Native](i).toBytes)
+
+      i must beEqualTo(o)
+    }
   }
 }

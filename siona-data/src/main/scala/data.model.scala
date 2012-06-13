@@ -39,19 +39,19 @@ package model {
     type V 
     type Z[T] = Field[T]
     val name: String
-    def apply(implicit in: Input, s: Serializable[T]): V
+    def apply(implicit in: Input, s: Serializable[T], m: Manifest[T]): V
     def apply(x: T)(implicit out: Output, s: Serializable[T]): IO[T] = IO(out.write(name, x))
   }
 
   trait Optional[T] extends Field[T] {
     override type V = Option[T]
-    override def apply(implicit in: Input, s: Serializable[T]): V = in.read[T](name)
+    override def apply(implicit in: Input, s: Serializable[T], m: Manifest[T]): V = in.read[T](name)
   }
 
   trait Default[T] extends Field[T] {
     override type V = T
     val default: T
-    override def apply(implicit in: Input, s: Serializable[T]): V = in.read[T](name).getOrElse(default)
+    override def apply(implicit in: Input, s: Serializable[T], m: Manifest[T]): V = in.read[T](name).getOrElse(default)
   }
 
   trait Indexed[T] extends Field[T]

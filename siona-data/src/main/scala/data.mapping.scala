@@ -42,7 +42,7 @@ trait Mapper[E <: Entity[_, _]] extends model.Model with io.Readable[E] with io.
   trait MapperKeyField[K, T] extends Field[K] with Mapped[K] {
     override val name: String = "id"
     override type V = Entity[K, T]#Key
-    def apply(implicit in: siona.data.io.Input, s: Serializable[K]): V = // Add monoid for default/ or a id gen typeclass
+    def apply(implicit in: siona.data.io.Input, s: Serializable[K], m: Manifest[K]): V = // Add monoid for default/ or a id gen typeclass
       in.read[K](name).get.asInstanceOf[Entity[K, T]#Key] // evil
   }
 
@@ -64,9 +64,12 @@ trait Mapper[E <: Entity[_, _]] extends model.Model with io.Readable[E] with io.
     f -> (f.read(_: T)(out, s))
 
   //implicit def fieldKey2apply[K, T](f: KeyField[K, T])(implicit in: io.Input, s: Serializable[K]): KeyField[K, T]#V = f(in, s)
-  implicit def fieldKey2apply[K](f: MapperKeyField[K, E])(implicit in: io.Input, s: Serializable[K]): MapperKeyField[K, E]#V = f(in, s)
-  implicit def fieldDefault2apply[T](f: model.Default[T])(implicit in: io.Input, s: Serializable[T]) = f(in, s)
-  implicit def fieldOptional2apply[T](f: model.Optional[T])(implicit in: io.Input, s: Serializable[T]) = f(in, s)
+  implicit def fieldKey2apply[K](f: MapperKeyField[K, E])
+    (implicit in: io.Input, s: Serializable[K], m: Manifest[K]): MapperKeyField[K, E]#V = f(in, s, m)
+  implicit def fieldDefault2apply[T](f: model.Default[T])
+    (implicit in: io.Input, s: Serializable[T], m: Manifest[T]) = f(in, s, m)
+  implicit def fieldOptional2apply[T](f: model.Optional[T])
+    (implicit in: io.Input, s: Serializable[T], m: Manifest[T]) = f(in, s, m)
 }
 
 trait MappedDocument[E <: Entity[_, _]] extends Document with Mapper[E] {

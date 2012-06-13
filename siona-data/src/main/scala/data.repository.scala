@@ -17,7 +17,7 @@ import model._
 import query._
 
 package object repository {
-  implicit def field2input[T : Serializable](f: Field[T]) = f(_: io.Input, implicitly[Serializable[T]])
+  implicit def field2input[T](f: Field[T])(implicit s: Serializable[T], m: Manifest[T]) = f(_: io.Input, s, m)
   implicit def indexed2predictable[T : Serializable](field: Indexed[T]) = query.Predictable[T, Indexed](field)
 
   object HList {
