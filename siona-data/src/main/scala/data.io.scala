@@ -8,6 +8,8 @@ import siona.core.uuid._
 import siona.core.entity._
 
 package object io {
+  import bytestring._
+  
   trait Writable[T] extends Marshalling[T] {
     def write(out: Output, v: T): T
   }
@@ -34,42 +36,48 @@ package object io {
     def unmarshall[F <: Format](implicit serializer: Serializer[F]) = serializer.unmarshall(self)
   }
 
-  // TODO [aloiscochard] Replace Array[Byte] with ByteString
-  case class Serializable[T](toBytes: T => Array[Byte], fromBytes: Array[Byte] => T)
+  case class Serializable[T](put: T => ByteString, get: ByteString => T)
 
   // TODO [aloiscochard] Check what happen when calling wrap(x).* with array of smaller size than needed,
-  // maybe use as*Buffer for security
+  // maybe use as*Buffer for security + check where ByteString could be use directly instead of Array[Byte]
+  // TODO [aloiscochard] Use put/get monads when available in Scalaz
   object Serializable {
     import java.nio.ByteBuffer._
 
+    def fromByteArray[T](toBytes: T => Array[Byte], fromBytes: Array[Byte] => T): Serializable[T] =
+      Serializable(x => new ByteString(toBytes(x)), x => fromBytes(x.toArray))
+
     implicit val boolean: Serializable[Boolean] = 
-      Serializable(x => Array((if (x) 1 else 0): Byte), x => (x.size == 1 && x(0) == 1))
+      fromByteArray(x => Array((if (x) 1 else 0): Byte), x => (x.size == 1 && x(0) == 1))
 
     implicit val char: Serializable[Char] =
-      Serializable(x => allocate(2).putChar(x).array(), x => wrap(x).getChar)
+      fromByteArray(x => allocate(2).putChar(x).array(), x => wrap(x).getChar)
 
     implicit val double: Serializable[Double] =
-      Serializable(x => allocate(8).putDouble(x).array(), x => wrap(x).getDouble)
+      fromByteArray(x => allocate(8).putDouble(x).array(), x => wrap(x).getDouble)
 
     implicit val float: Serializable[Float] =
-      Serializable(x => allocate(4).putFloat(x).array(), x => wrap(x).getFloat)
+      fromByteArray(x => allocate(4).putFloat(x).array(), x => wrap(x).getFloat)
 
     implicit val integer: Serializable[Int] =
-      Serializable(x => allocate(4).putInt(x).array(), x => wrap(x).getInt)
+      fromByteArray(x => allocate(4).putInt(x).array(), x => wrap(x).getInt)
 
     implicit val long: Serializable[Long] =
-      Serializable(x => allocate(8).putLong(x).array(), x => wrap(x).getLong)
+      fromByteArray(x => allocate(8).putLong(x).array(), x => wrap(x).getLong)
 
     implicit val short: Serializable[Short] =
-      Serializable(x => allocate(2).putShort(x).array(), x => wrap(x).getShort)
+      fromByteArray(x => allocate(2).putShort(x).array(), x => wrap(x).getShort)
 
     implicit val string: Serializable[String] =
-      Serializable(_.getBytes, new String(_: Array[Byte]))
+      fromByteArray(_.getBytes, new String(_: Array[Byte]))
 
     implicit val uuid: Serializable[UUID] = 
-      Serializable(_.toString.getBytes, (x: Array[Byte]) => java.util.UUID.fromString(new String(x)))
+      fromByteArray(_.toString.getBytes, (x: Array[Byte]) => java.util.UUID.fromString(new String(x)))
+
   }
 
+  // TODO [aloiscochard] Use ByteSring instead of Stream[Byte]? or maybe better data-structure
+  // Take a look at https://github.com/arjanblokzijl/scala-conduits
   trait Serializer[F <: Format] {
     def marshall[T](s: Writable[T], x: T): Marshalled[T]
     def unmarshall[T](r: Readable[T]): Unmarshalled[T]
@@ -114,7 +122,7 @@ package io {
         value match {
           case x: Boolean => jg.writeBooleanField(name, x)
           case x: String => jg.writeStringField(name, x)
-          case x => jg.writeBinaryField(name, ser.toBytes(x))
+          case x => jg.writeBinaryField(name, ser.put(x).toArray)
         }
         value
       }

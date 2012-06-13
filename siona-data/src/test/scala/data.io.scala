@@ -12,7 +12,7 @@ import org.specs2.mutable._
 class DataIOSpec extends Specification {
   "siona-data-io" should {
     "serialize standard types" in {
-      def check[T](x: T)(implicit s: Serializable[T]) = s.fromBytes(s.toBytes(x))
+      def check[T](x: T)(implicit s: Serializable[T]) = s.get(s.put(x))
 
       val boolean: Boolean = true
       val character: Char = 'z'
