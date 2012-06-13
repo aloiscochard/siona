@@ -8,6 +8,7 @@ import scalaz._
 import Scalaz._
 
 package object uuid {
+  // TODO [aloiscochard] Replace UUID with correct implementation
   type UUID = java.util.UUID
 
   object UUID {
