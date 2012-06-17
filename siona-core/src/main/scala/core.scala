@@ -13,6 +13,7 @@ package object uuid {
 
   object UUID {
     def generate = new UUID
+    def fromString(s: String) = new UUID(s)
   }
 
   implicit val uuidEqual = new Equal[UUID] {
