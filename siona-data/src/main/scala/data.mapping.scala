@@ -6,6 +6,7 @@ package siona.data
 package mapping
 
 import scalaz._
+import scalaz.Id._
 import scalaz.effect._
 
 import siona.core.entity._

@@ -74,7 +74,7 @@ package object io {
       fromByteArray(_.getBytes, new String(_: Array[Byte]))
 
     implicit val uuid: Serializable[UUID] = 
-      fromByteArray(_.toString.getBytes, (x: Array[Byte]) => java.util.UUID.fromString(new String(x)))
+      fromByteArray(_.toString.getBytes, (x: Array[Byte]) => new UUID(new String(x)))
 
   }
 

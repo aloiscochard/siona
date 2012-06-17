@@ -22,7 +22,7 @@ class DataIOSpec extends Specification {
       val long: Long = 8798783
       val short: Short = 16
       val string: String = "hello siona"
-      val uuid: UUID = UUID.random
+      val uuid: UUID = UUID.generate
 
       check(boolean) must beEqualTo(boolean)
       check(character) must beEqualTo(character)

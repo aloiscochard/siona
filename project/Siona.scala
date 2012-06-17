@@ -15,7 +15,8 @@ object BuildSettings {
     crossScalaVersions  := Seq("2.9.1", "2.9.1-1", "2.9.2"),
     resolvers ++= Seq(
       "Sonatype OSS Releases" at "http://oss.sonatype.org/content/repositories/releases/",
-      "Sonatype OSS Snapshots" at "http://oss.sonatype.org/content/repositories/snapshots/"
+      "Sonatype OSS Snapshots" at "http://oss.sonatype.org/content/repositories/snapshots/",
+      "eaio.com" at "http://eaio.com/maven2"
     )
   )
 }
@@ -47,7 +48,8 @@ object SionaBuild extends Build {
     settings = buildSettings ++ testDependencies ++ Seq(
       libraryDependencies ++= Seq(
         "org.scalaz" %% "scalaz-core" % "7.0-SNAPSHOT",
-        "org.scalaz" %% "scalaz-effect" % "7.0-SNAPSHOT"
+        "org.scalaz" %% "scalaz-effect" % "7.0-SNAPSHOT",
+        "com.eaio.uuid" % "uuid" % "3.3"
       )
     )
   )

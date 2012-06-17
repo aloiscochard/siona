@@ -9,14 +9,29 @@ import Scalaz._
 
 package object uuid {
   // TODO [aloiscochard] Replace UUID with correct implementation
-  type UUID = java.util.UUID
+  type UUID = com.eaio.uuid.UUID
 
   object UUID {
-    def random = java.util.UUID.randomUUID
+    def generate = new UUID
   }
 
   implicit val uuidEqual = new Equal[UUID] {
-    def equal(id1: UUID, id2: UUID): Boolean = id1 == id2
+    def equal(id1: UUID, id2: UUID): Boolean = id1.compareTo(id2) == 0
+  }
+
+  implicit def uuidOps(uuid: UUID) = new UUIDOps(uuid)
+
+  class UUIDOps(uuid: UUID) {
+
+    // TODO [aloiscochard] Review this by a math nerd
+    def shard(size: Int = 128): Int = {
+      def f2(size: Int) = {
+        def f(x: Int, y: Int): Int = (x % (y * 3)) / 3
+        val hash = math.abs(uuid.hashCode)
+        (1 to size).map(f(hash, _)).sum % size
+      }
+      f2(size * 8) % size
+    }
   }
 }
 
