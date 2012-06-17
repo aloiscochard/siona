@@ -10,6 +10,27 @@ import siona.core.entity._
 package object io {
   import bytestring._
   
+  implicit def marshallingOps[T](x: T)(implicit m: Marshalling[T]) = new MarshallingOps(x, m)
+
+  class MarshallingOps[T](x: T, m: Marshalling[T]) {
+    def marshall[F <: Format]()(implicit s: Serializer[F]) = m.marshall(x)
+  }
+
+  def unmarshall[T, F <: Format](implicit u: Unmarshalling[T], s: Serializer[F]) = u.unmarshall
+
+  def serializer[F <: Format](implicit s: Serializer[F]) = s
+
+
+  // TODO Move to a specific package and add support for Map
+  implicit def tupleWriter[T](implicit s: Serializable[T]) = new TupleWriter[T]
+  class TupleWriter[T](implicit s: Serializable[T]) extends Writable[(String, T)] {
+
+    def write(out: Output, tuple: (String, T)): (String, T) = {
+      out.write(tuple._1, tuple._2)
+      tuple
+    }
+  }
+      
   trait Writable[T] extends Marshalling[T] {
     def write(out: Output, v: T): T
   }
@@ -48,9 +69,13 @@ package object io {
       Serializable(x => new ByteString(toBytes(x)), x => fromBytes(x.toArray))
 
     implicit val boolean: Serializable[Boolean] = 
-      fromByteArray(x => Array((if (x) 1 else 0): Byte), x => (x.size == 1 && x(0) == 1))
+      fromByteArray(x => Array((if (x) 1 else 0): Byte), x => x(0) == 1)
 
-    // TODO [aloiscochard] Missing byte and bytes!
+    implicit val byte: Serializable[Byte] = 
+      fromByteArray(x => Array(x), x => x(0))
+
+    implicit val bytes: Serializable[Array[Byte]] = 
+      fromByteArray(identity, identity)
 
     implicit val char: Serializable[Char] =
       fromByteArray(x => allocate(2).putChar(x).array(), x => wrap(x).getChar)
@@ -74,7 +99,7 @@ package object io {
       fromByteArray(_.getBytes, new String(_: Array[Byte]))
 
     implicit val uuid: Serializable[UUID] = 
-      fromByteArray(_.toString.getBytes, (x: Array[Byte]) => new UUID(new String(x)))
+      fromByteArray(_.toString.getBytes, (x: Array[Byte]) => UUID.fromString(new String(x)))
 
   }
 
@@ -90,6 +115,21 @@ package object io {
 
     case class Unmarshalled[T](f: Stream[Byte] => T) {
       def fromBytes(bytes: Stream[Byte]): T = f(bytes)
+    }
+
+    def read[T](name: String)(implicit s: Serializable[T], m: Manifest[T]) =
+      new SimpleReader[T](name).unmarshall(this)
+
+    def write[T](name: String, x: T)(implicit s: Serializable[T], m: Manifest[T]) =
+      new SimpleWriter[T](name).marshall(x)(this)
+
+
+    class SimpleReader[T](name: String)(implicit s: Serializable[T], m: Manifest[T]) extends Readable[Option[T]] {
+      def read(input: Input): Option[T] = input.read[T](name)
+    }
+
+    class SimpleWriter[T](name: String)(implicit s: Serializable[T], m: Manifest[T]) extends Writable[T] {
+      def write(out: Output, v: T): T = out.write(name, v)
     }
   }
 
@@ -142,14 +182,14 @@ package io {
         def write[T](name: String, value: T)(implicit s: Serializable[T]): T = {
           value match {
             case x: Boolean => oos.writeBoolean(x)
-            case x: String => oos.writeUTF(x)
             case x: Char => oos.writeChar(x)
             case x: Double => oos.writeDouble(x)
             case x: Float => oos.writeFloat(x)
             case x: Int => oos.writeInt(x)
             case x: Long => oos.writeLong(x)
             case x: Short => oos.writeShort(x)
-            case x: UUID => oos.writeChars(x.toString)
+            case x: String => oos.writeUTF(x)
+            case x: UUID => oos.writeUTF(x.toString)
             case x => oos.write(s.put(x).toArray)
           }
           value
@@ -159,8 +199,16 @@ package io {
       private class NativeInput(ois: ObjectInputStream) extends Input {
         def read[T](n: String)(implicit s: Serializable[T], m: Manifest[T]): Option[T] = {
           if (m <:< manifest[Boolean]) Some(ois.readBoolean).asInstanceOf[Option[T]]
-          // TODO [aloiscochard] WIP
+          else if (m <:< manifest[Char]) Some(ois.readChar).asInstanceOf[Option[T]]
+          else if (m <:< manifest[Byte]) Some(ois.readByte).asInstanceOf[Option[T]]
+          else if (m <:< manifest[Char]) Some(ois.readChar).asInstanceOf[Option[T]]
+          else if (m <:< manifest[Double]) Some(ois.readDouble).asInstanceOf[Option[T]]
+          else if (m <:< manifest[Float]) Some(ois.readFloat).asInstanceOf[Option[T]]
+          else if (m <:< manifest[Int]) Some(ois.readInt).asInstanceOf[Option[T]]
+          else if (m <:< manifest[Long]) Some(ois.readLong).asInstanceOf[Option[T]]
+          else if (m <:< manifest[Short]) Some(ois.readShort).asInstanceOf[Option[T]]
           else if (m <:< manifest[String]) Some(ois.readUTF).asInstanceOf[Option[T]]
+          else if (m <:< manifest[UUID]) Some(UUID.fromString(ois.readUTF)).asInstanceOf[Option[T]]
           else None
         }
       }

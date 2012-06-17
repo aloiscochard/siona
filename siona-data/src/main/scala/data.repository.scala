@@ -19,13 +19,6 @@ import query._
 package object repository {
   implicit def field2input[T](f: Field[T])(implicit s: Serializable[T], m: Manifest[T]) = f(_: io.Input, s, m)
   implicit def indexed2predictable[T : Serializable](field: Indexed[T]) = query.Predictable[T, Indexed](field)
-
-  object HList {
-    /**
-     * Construct an HList from a given Tuple.
-     */
-    def apply[P <: Product](tuple: P)(implicit hlister: HLister[P]) = hlister(tuple)
-  }
 }
 
 package repository {
