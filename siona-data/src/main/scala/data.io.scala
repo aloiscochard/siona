@@ -30,21 +30,34 @@ package object io {
       tuple
     }
   }
-      
+
+  trait Persistable[T] extends Writable[T] with Readable[T]
+
   trait Writable[T] extends Marshalling[T] {
     def write(out: Output, v: T): T
   }
 
   trait Readable[T] extends Unmarshalling[T] {
-    def read(input: Input): T
+    def read(input: Input): T // TODO Option or Validation?
   }
 
+  // TODO Validation + IO
   trait Input {
-    def read[T](n: String)(implicit s: Serializable[T], m: Manifest[T]): Option[T]
+    def read[T](n: String)(implicit s: Serializable[T], m: Manifest[T]): Option[T] // TODO Use validation somewhere to catch errors
+    def readList[T](n: String)(implicit s: Serializable[T], m: Manifest[T]): Seq[T]
+    def readOption[T](n: String)(implicit s: Serializable[T], m: Manifest[T]): Option[T]
+    def readObject[T](n: String)(implicit r: Readable[T]): Option[T]
+    def readObjectList[T](n: String)(implicit r: Readable[T]): Seq[T]
+    def readObjectOption[T](n: String)(implicit r: Readable[T]): Option[T]
   }
 
   trait Output {
     def write[T](n: String, x: T)(implicit s: Serializable[T]): T
+    def writeOption[T](n: String, x: Option[T])(implicit s: Serializable[T]): Option[T]
+    def writeList[T](n: String, xs: Seq[T])(implicit s: Serializable[T]): Seq[T]
+    def writeObject[T](n: String, x: T)(implicit w: Writable[T]): T
+    def writeObjectList[T](n: String, xs: Seq[T])(implicit w: Writable[T]): Seq[T]
+    def writeObjectOption[T](n: String, x: Option[T])(implicit w: Writable[T]): Option[T]
   }
 
   trait Marshalling[T] { self: Writable[T] =>
@@ -120,6 +133,10 @@ package object io {
     def read[T](name: String)(implicit s: Serializable[T], m: Manifest[T]) =
       new SimpleReader[T](name).unmarshall(this)
 
+    // TODO WIP
+    //def readList[T](n: String)(implicit s: Serializable[T], m: Manifest[T]): Seq[T] =
+    //def readOption[T](n: String)(implicit s: Serializable[T], m: Manifest[T]): Option[T] =
+
     def write[T](name: String, x: T)(implicit s: Serializable[T], m: Manifest[T]) =
       new SimpleWriter[T](name).marshall(x)(this)
 
@@ -145,7 +162,7 @@ package io {
     import java.io.{ByteArrayOutputStream, ByteArrayInputStream}
     import java.io.{ObjectOutputStream, ObjectInputStream}
 
-    // TODO [aloiscochard] Add native version that use field name and rename this one
+    // TODO [aloiscochard] Add native version that use field name and rename this one to "strict"
 
     class Native extends Binary
 
@@ -178,6 +195,37 @@ package io {
         }
       )
       
+      private class NativeInput(ois: ObjectInputStream) extends Input {
+        def read[T](n: String)(implicit s: Serializable[T], m: Manifest[T]): Option[T] = (
+          if (m <:< manifest[Boolean]) Some(ois.readBoolean)
+          else if (m <:< manifest[Char]) Some(ois.readChar)
+          else if (m <:< manifest[Byte]) Some(ois.readByte)
+          else if (m <:< manifest[Char]) Some(ois.readChar)
+          else if (m <:< manifest[Double]) Some(ois.readDouble)
+          else if (m <:< manifest[Float]) Some(ois.readFloat)
+          else if (m <:< manifest[Int]) Some(ois.readInt)
+          else if (m <:< manifest[Long]) Some(ois.readLong)
+          else if (m <:< manifest[Short]) Some(ois.readShort)
+          else if (m <:< manifest[String]) Some(ois.readUTF)
+          else if (m <:< manifest[UUID]) Some(UUID.fromString(ois.readUTF))
+          else None
+        ).asInstanceOf[Option[T]]
+
+        def readList[T](n: String)(implicit s: Serializable[T], m: Manifest[T]): Seq[T] =
+          read[Int]("").map(size => (1 to size).flatMap(_ => read[T](""))).getOrElse(Nil)
+
+        def readOption[T](n: String)(implicit s: Serializable[T], m: Manifest[T]): Option[T] =
+          read[Boolean]("").flatMap(defined => if (defined) read[T]("") else None)
+
+        def readObject[T](n: String)(implicit r: Readable[T]): Option[T] = Some(r.read(this))
+
+        def readObjectList[T](n: String)(implicit r: Readable[T]): Seq[T] =
+          read[Int]("").map(size => (1 to size).flatMap(_ => readObject[T](""))).getOrElse(Nil)
+
+        def readObjectOption[T](n: String)(implicit r: Readable[T]): Option[T] =
+          read[Boolean]("").flatMap(defined => if (defined) readObject[T]("") else None)
+      }
+
       private class NativeOutput(oos: ObjectOutputStream) extends Output {
         def write[T](name: String, value: T)(implicit s: Serializable[T]): T = {
           value match {
@@ -194,32 +242,41 @@ package io {
           }
           value
         }
-      }
 
-      private class NativeInput(ois: ObjectInputStream) extends Input {
-        def read[T](n: String)(implicit s: Serializable[T], m: Manifest[T]): Option[T] = {
-          if (m <:< manifest[Boolean]) Some(ois.readBoolean).asInstanceOf[Option[T]]
-          else if (m <:< manifest[Char]) Some(ois.readChar).asInstanceOf[Option[T]]
-          else if (m <:< manifest[Byte]) Some(ois.readByte).asInstanceOf[Option[T]]
-          else if (m <:< manifest[Char]) Some(ois.readChar).asInstanceOf[Option[T]]
-          else if (m <:< manifest[Double]) Some(ois.readDouble).asInstanceOf[Option[T]]
-          else if (m <:< manifest[Float]) Some(ois.readFloat).asInstanceOf[Option[T]]
-          else if (m <:< manifest[Int]) Some(ois.readInt).asInstanceOf[Option[T]]
-          else if (m <:< manifest[Long]) Some(ois.readLong).asInstanceOf[Option[T]]
-          else if (m <:< manifest[Short]) Some(ois.readShort).asInstanceOf[Option[T]]
-          else if (m <:< manifest[String]) Some(ois.readUTF).asInstanceOf[Option[T]]
-          else if (m <:< manifest[UUID]) Some(UUID.fromString(ois.readUTF)).asInstanceOf[Option[T]]
-          else None
+        def writeList[T](n: String, xs: Seq[T])(implicit w: Serializable[T]): Seq[T] = {
+          write[Int]("", xs.size)
+          xs.map(write("", _))
+        }
+
+        def writeOption[T](n: String, x: Option[T])(implicit s: Serializable[T]): Option[T] = {
+          write[Boolean]("", x.isDefined)
+          x.map(write("", _))
+        }
+
+        def writeObject[T](n: String, x: T)(implicit w: Writable[T]): T = w.write(this, x)
+
+        def writeObjectList[T](n: String, xs: Seq[T])(implicit w: Writable[T]): Seq[T] = {
+          write[Int]("", xs.size)
+          xs.map(writeObject("", _))
+        }
+
+        def writeObjectOption[T](n: String, x: Option[T])(implicit w: Writable[T]): Option[T] = {
+          write[Boolean]("", x.isDefined)
+          x.map(w.write(this, _))
         }
       }
     }
   }
 
+  /*
   package object jackson {
     import java.io.ByteArrayOutputStream
     import com.fasterxml.jackson.core.JsonFactory
     import com.fasterxml.jackson.core.JsonGenerator
     import com.fasterxml.jackson.core.JsonEncoding
+    
+    // TODO [aloiscochard] add List support
+    // TODO [aloiscochard] add Option support
 
     implicit object JacksonSerializer extends Serializer[JSON] {
       def marshall[T](s: Writable[T], x: T): Marshalled[T] = { // Return IO?
@@ -248,4 +305,5 @@ package io {
       }
     }
   }
+  */
 }
