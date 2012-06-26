@@ -34,10 +34,10 @@ package object model {
     val name = MappedField[String]("name", nameValidator, nameLens)
 
     val nameValidator: Validator[String] = Validator(name => {
-      if (name.isEmpty) "Name can't be empty".fail
-      if (name.length > 20) "Name can't be longer than 20 character".fail
-      if (name.length < 5) "Name can't be smaller than 5 character".fail
-      name.success
+      if (name.isEmpty) "Name can't be empty".failNel
+      else if (name.length > 20) "Name can't be longer than 20 character".failNel
+      else if (name.length < 5) "Name can't be smaller than 5 character".failNel
+      else name.success
     })
 
     val keyLens: Lens[UUID] = Lens(e => k => e.copy(key = Key(k)), _.key)
@@ -46,7 +46,7 @@ package object model {
     // TODO Add Optional Field support
 
     def apply(name: String): Category = Category(
-      Key(UUID.random),
+      Key(UUID.generate),
       name
     )
 
@@ -58,7 +58,7 @@ package object model {
 
   object Item {
     def apply(name: String, category: Category#Key): Item = Item(
-      Key(java.util.UUID.randomUUID),
+      Key(UUID.generate),
       name,
       category
     )
@@ -84,13 +84,12 @@ object test {
   ///////////////////
 
   def serialization = {
-    import siona.data.io.jackson._
-
-    //unmarshall
-    //c.marshall
+    //import siona.data.io.jackson._
+    import siona.data.io.native._
 
     //unmarshall[JSON]
-    println(new String(c.marshall[JSON].toBytes.toArray))
+    //println(new String(c.marshall[JSON].toBytes.toArray))
+    println(new String(c.marshall[Native].toBytes.toArray))
   }
 
   ////////////////////////
@@ -121,7 +120,7 @@ object test {
     get(c.key)(key, name)
 
     set(c.key, name, "a")
-    set(c.key)(key, name)(UUID.random, "b")
+    set(c.key)(key, name)(UUID.generate, "b")
 
     update(c.key, name)(_ + "*")
     update(c.key)(key, name).to((a, b) => (a, b + "*"))
