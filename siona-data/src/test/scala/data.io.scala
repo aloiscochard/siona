@@ -9,6 +9,8 @@ import siona.core.uuid._
 
 import org.specs2.mutable._
 
+// TODO Test Object (Persistable) support
+
 class DataIOSpec extends Specification {
 
   val boolean: Boolean = true
@@ -63,5 +65,11 @@ class DataIOSpec extends Specification {
     s.read[Short]("s").fromBytes(s.write("s", short).toBytes) must beEqualTo(Some(short))
     s.read[String]("s").fromBytes(s.write("s", string).toBytes) must beEqualTo(Some(string))
     s.read[UUID]("u").fromBytes(s.write("u", uuid).toBytes) must beEqualTo(Some(uuid))
+
+    s.readSeq[String]("s").fromBytes(s.writeSeq("s", List("a", "b")).toBytes) must beEqualTo(List("a", "b"))
+
+    s.readOption[String]("s").fromBytes(s.writeOption("s", Some(string)).toBytes) must beEqualTo(Some(string))
+    s.readOption[String]("s").fromBytes(s.writeOption[String]("s", None).toBytes) must beEqualTo(None)
+
   }
 }

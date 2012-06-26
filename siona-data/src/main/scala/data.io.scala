@@ -7,6 +7,7 @@ package siona.data
 import siona.core.uuid._
 import siona.core.entity._
 
+// TODO Input/Output: Rename writeSeq readSeq to *Seq, + HList support, how to support Seq of Seq.. recursively ?
 package object io {
   import bytestring._
   
@@ -44,19 +45,19 @@ package object io {
   // TODO Validation + IO
   trait Input {
     def read[T](n: String)(implicit s: Serializable[T], m: Manifest[T]): Option[T] // TODO Use validation somewhere to catch errors
-    def readList[T](n: String)(implicit s: Serializable[T], m: Manifest[T]): Seq[T]
+    def readSeq[T](n: String)(implicit s: Serializable[T], m: Manifest[T]): Seq[T]
     def readOption[T](n: String)(implicit s: Serializable[T], m: Manifest[T]): Option[T]
     def readObject[T](n: String)(implicit r: Readable[T]): Option[T]
-    def readObjectList[T](n: String)(implicit r: Readable[T]): Seq[T]
+    def readObjectSeq[T](n: String)(implicit r: Readable[T]): Seq[T]
     def readObjectOption[T](n: String)(implicit r: Readable[T]): Option[T]
   }
 
   trait Output {
     def write[T](n: String, x: T)(implicit s: Serializable[T]): T
     def writeOption[T](n: String, x: Option[T])(implicit s: Serializable[T]): Option[T]
-    def writeList[T](n: String, xs: Seq[T])(implicit s: Serializable[T]): Seq[T]
+    def writeSeq[T](n: String, xs: Seq[T])(implicit s: Serializable[T]): Seq[T]
     def writeObject[T](n: String, x: T)(implicit w: Writable[T]): T
-    def writeObjectList[T](n: String, xs: Seq[T])(implicit w: Writable[T]): Seq[T]
+    def writeObjectSeq[T](n: String, xs: Seq[T])(implicit w: Writable[T]): Seq[T]
     def writeObjectOption[T](n: String, x: Option[T])(implicit w: Writable[T]): Option[T]
   }
 
@@ -130,24 +131,56 @@ package object io {
       def fromBytes(bytes: Stream[Byte]): T = f(bytes)
     }
 
-    def read[T](name: String)(implicit s: Serializable[T], m: Manifest[T]) =
-      new SimpleReader[T](name).unmarshall(this)
-
-    // TODO WIP
-    //def readList[T](n: String)(implicit s: Serializable[T], m: Manifest[T]): Seq[T] =
-    //def readOption[T](n: String)(implicit s: Serializable[T], m: Manifest[T]): Option[T] =
-
-    def write[T](name: String, x: T)(implicit s: Serializable[T], m: Manifest[T]) =
-      new SimpleWriter[T](name).marshall(x)(this)
-
-
-    class SimpleReader[T](name: String)(implicit s: Serializable[T], m: Manifest[T]) extends Readable[Option[T]] {
+    // TODO Move this stuffs in other trait (delegate support) or maybe possible to pimp in a generic way (avoid boilerplate)
+    // Or better readable construction syntax
+    def read[T](name: String)(implicit s: Serializable[T], m: Manifest[T]) = new Readable[Option[T]] {
       def read(input: Input): Option[T] = input.read[T](name)
-    }
+    }.unmarshall(this)
 
-    class SimpleWriter[T](name: String)(implicit s: Serializable[T], m: Manifest[T]) extends Writable[T] {
+    def readSeq[T](name: String)(implicit s: Serializable[T], m: Manifest[T]) = new Readable[Seq[T]] {
+      def read(input: Input): Seq[T] = input.readSeq[T](name)
+    }.unmarshall(this)
+
+    def readOption[T](name: String)(implicit s: Serializable[T], m: Manifest[T]) = new Readable[Option[T]] {
+      def read(input: Input): Option[T] = input.readOption[T](name)
+    }.unmarshall(this)
+
+    def readObject[T](name: String)(implicit r: Readable[T]) = new Readable[Option[T]] {
+      def read(input: Input): Option[T] = input.readObject[T](name)
+    }.unmarshall(this)
+
+    def readObjectSeq[T](name: String)(implicit r: Readable[T]) = new Readable[Seq[T]] {
+      def read(input: Input): Seq[T] = input.readObjectSeq[T](name)
+    }.unmarshall(this)
+
+    def readObjectOption[T](name: String)(implicit r: Readable[T]) = new Readable[Option[T]] {
+      def read(input: Input): Option[T] = input.readObjectOption[T](name)
+    }.unmarshall(this)
+
+    def write[T](name: String, x: T)(implicit s: Serializable[T], m: Manifest[T]) = new Writable[T] {
       def write(out: Output, v: T): T = out.write(name, v)
-    }
+    }.marshall(x)(this)
+
+    def writeOption[T](name: String, x: Option[T])(implicit s: Serializable[T]) = new Writable[Option[T]] {
+      def write(out: Output, v: Option[T]): Option[T] = out.writeOption(name, v)
+    }.marshall(x)(this)
+
+    def writeSeq[T](name: String, xs: Seq[T])(implicit s: Serializable[T]) = new Writable[Seq[T]] {
+      def write(out: Output, v: Seq[T]): Seq[T] = out.writeSeq(name, v)
+    }.marshall(xs)(this)
+
+    def writeObject[T](name: String, x: T)(implicit w: Writable[T]) = new Writable[T] {
+      def write(out: Output, v: T): T = out.writeObject(name, v)
+    }.marshall(x)(this)
+
+    def writeObjectSeq[T](name: String, xs: Seq[T])(implicit w: Writable[T]) = new Writable[Seq[T]] {
+      def write(out: Output, v: Seq[T]): Seq[T] = out.writeObjectSeq(name, v)
+    }.marshall(xs)(this)
+
+    def writeObjectOption[T](name: String, x: Option[T])(implicit w: Writable[T]) = new Writable[Option[T]] {
+      def write(out: Output, v: Option[T]): Option[T] = out.writeObjectOption(name, v)
+    }.marshall(x)(this)
+
   }
 
   // TODO [aloiscochard] Add output type in format (Binary extends Format[ByteString], JSON -> String, Protobuf ext Binary)
@@ -211,7 +244,7 @@ package io {
           else None
         ).asInstanceOf[Option[T]]
 
-        def readList[T](n: String)(implicit s: Serializable[T], m: Manifest[T]): Seq[T] =
+        def readSeq[T](n: String)(implicit s: Serializable[T], m: Manifest[T]): Seq[T] =
           read[Int]("").map(size => (1 to size).flatMap(_ => read[T](""))).getOrElse(Nil)
 
         def readOption[T](n: String)(implicit s: Serializable[T], m: Manifest[T]): Option[T] =
@@ -219,7 +252,7 @@ package io {
 
         def readObject[T](n: String)(implicit r: Readable[T]): Option[T] = Some(r.read(this))
 
-        def readObjectList[T](n: String)(implicit r: Readable[T]): Seq[T] =
+        def readObjectSeq[T](n: String)(implicit r: Readable[T]): Seq[T] =
           read[Int]("").map(size => (1 to size).flatMap(_ => readObject[T](""))).getOrElse(Nil)
 
         def readObjectOption[T](n: String)(implicit r: Readable[T]): Option[T] =
@@ -243,7 +276,7 @@ package io {
           value
         }
 
-        def writeList[T](n: String, xs: Seq[T])(implicit w: Serializable[T]): Seq[T] = {
+        def writeSeq[T](n: String, xs: Seq[T])(implicit w: Serializable[T]): Seq[T] = {
           write[Int]("", xs.size)
           xs.map(write("", _))
         }
@@ -255,7 +288,7 @@ package io {
 
         def writeObject[T](n: String, x: T)(implicit w: Writable[T]): T = w.write(this, x)
 
-        def writeObjectList[T](n: String, xs: Seq[T])(implicit w: Writable[T]): Seq[T] = {
+        def writeObjectSeq[T](n: String, xs: Seq[T])(implicit w: Writable[T]): Seq[T] = {
           write[Int]("", xs.size)
           xs.map(writeObject("", _))
         }
